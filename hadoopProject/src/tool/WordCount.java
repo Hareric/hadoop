@@ -1,4 +1,4 @@
-package Weibo;
+package tool;
 
 import java.io.IOException;
 import java.util.StringTokenizer;
@@ -27,8 +27,6 @@ public class WordCount {
 		private Text word = new Text();
 
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException {
-//			System.out.println(key.toString());
-			System.out.println(value.toString());
 			StringTokenizer itr = new StringTokenizer(value.toString());  // 对字符串进行切分
 			while (itr.hasMoreTokens()) {
 				word.set(itr.nextToken());
@@ -54,7 +52,7 @@ public class WordCount {
 	public static void main(String[] args) throws Exception {
 		Configuration conf = new Configuration();
 //		String[] otherArgs = new GenericOptionsParser(conf, args).getRemainingArgs();
-		String[] otherArgs = {"/input_wc", "/output_wc_withoutreducer"};
+		String[] otherArgs = {"/weibo", "/output_wc_test"};
 		if (otherArgs.length != 2) {
 			System.err.println("Usage: wordcount <in> <out>");
 			System.exit(2);
@@ -62,10 +60,11 @@ public class WordCount {
 		Job job = new Job(conf, "word count");
 		job.setJarByClass(WordCount.class);
 		job.setMapperClass(TokenizerMapper.class);
-//		job.setCombinerClass(IntSumReducer.class);
-//		job.setReducerClass(IntSumReducer.class);
+		job.setCombinerClass(IntSumReducer.class);
+		job.setReducerClass(IntSumReducer.class);
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(IntWritable.class);
+		FileInputFormat.setInputDirRecursive(job, true);
 		FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
 		FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
 		System.exit(job.waitForCompletion(true) ? 0 : 1);

@@ -1,4 +1,4 @@
-package Weibo;
+package weibo;
 
 import java.io.*;
 import java.util.regex.Matcher;
@@ -14,69 +14,93 @@ import org.apache.hadoop.util.*;
 
 public class UserInfoCollect {
 	public static class UserInfoWritable implements Writable {
-		private String sex = "";
-		private String area = "";
-		private String birth = "";
+		String uid = null;  // 用户id
+		int followNum = -1;  // 关注人数
+		int fanNum = -1;  // 粉丝人数
+		int blogNum = -1;  // 发布的微博数
+		int isCertification = -1;  // 是否微博认证 0表示否 1表示是
+		int forwardNum = -1;  // 首页转发数
+		int commentNum = -1;  // 首页评论数
+		int likeNum = -1;  // 首页点赞数
+		int isV = -1;  // 是否为大V 0表示否 1表示是
+		public UserInfoWritable() {}
 		
-		public String getSex() {
-			return sex;
+	    public UserInfoWritable(String uid, int followNum, int fanNum, int blogNum, int isCertification, int forwardNum,
+				int commentNum, int likeNum) {
+			super();
+			this.uid = uid;
+			this.followNum = followNum;
+			this.fanNum = fanNum;
+			this.blogNum = blogNum;
+			this.isCertification = isCertification;
+			this.forwardNum = forwardNum;
+			this.commentNum = commentNum;
+			this.likeNum = likeNum;
 		}
-
-		public String getArea() {
-			return area;
-		}
-
-		public String getBirth() {
-			return birth;
-		}
-		
-	    public void setSex(String sex) {
-			this.sex = sex;
-		}
-
-		public void setArea(String area) {
-			this.area = area;
-		}
-
-		public void setBirth(String birth) {
-			this.birth = birth;
-		}
-
-	    public UserInfoWritable() {}
-
-	    public UserInfoWritable(String sex, String area, String birth) {
-	        this.sex = sex;
-	        this.area = area;
-	        this.birth = birth;
-	    }
 	    
 	    @Override
 	    public void readFields(DataInput in) throws IOException {
-	    	this.sex = WritableUtils.readString(in);
-	    	this.area = WritableUtils.readString(in);
-	    	this.birth = WritableUtils.readString(in);
+	    	this.uid = WritableUtils.readString(in);
+	    	this.followNum = WritableUtils.readVInt(in);
+	    	this.fanNum = WritableUtils.readVInt(in);
+	    	this.blogNum = WritableUtils.readVInt(in);
+	    	this.isCertification = WritableUtils.readVInt(in);
+	    	this.forwardNum = WritableUtils.readVInt(in);
+	    	this.commentNum = WritableUtils.readVInt(in);
+	    	this.likeNum = WritableUtils.readVInt(in);
 	    }
 
 	    @Override 
 	    public void write(DataOutput out) throws IOException {
-	    	WritableUtils.writeString(out, sex);
-	    	WritableUtils.writeString(out, area);
-	    	WritableUtils.writeString(out, birth);
+	    	WritableUtils.writeString(out, this.uid);
+	    	WritableUtils.writeVInt(out, this.followNum);
+	    	WritableUtils.writeVInt(out, this.fanNum);
+	    	WritableUtils.writeVInt(out, this.blogNum);
+	    	WritableUtils.writeVInt(out, this.isCertification);
+	    	WritableUtils.writeVInt(out, this.forwardNum);
+	    	WritableUtils.writeVInt(out, this.commentNum);
+	    	WritableUtils.writeVInt(out, this.likeNum);
 	    }
 
 	    @Override
 	    public String toString() {
-	        return this.sex + "\t" + this.area + "\t" + this.birth;
+	        return this.uid + "\t" + this.followNum + "\t" + this.fanNum + "\t" +  this.blogNum + 
+	        		this.isCertification + "\t" + this.forwardNum + "\t" + this.commentNum + "\t" + this.likeNum;
 	    }
+	}
+
+	public static class InfoWritable implements Writable{	
+		int typeNum = -1;  // 匹配信息的类别 0:用户id 1:关注的人数 2:粉丝数 3:发布的微博数 4:是否微博认证 
+							// 5:首页转发数 6:首页评论数 7:首页点赞数 8:是否大V
+		String matchInfo = null;
+		
+		
+		public InfoWritable(int typeNum, String matchInfo) {
+			super();
+			this.typeNum = typeNum;
+			this.matchInfo = matchInfo;
+		}
+
+		@Override
+		public void readFields(DataInput in) throws IOException {
+	    	this.typeNum = WritableUtils.readVInt(in);
+	    	this.matchInfo = WritableUtils.readString(in);
+		}
+
+		@Override
+		public void write(DataOutput out) throws IOException {
+	    	WritableUtils.writeVInt(out, typeNum);
+	    	WritableUtils.writeString(out, matchInfo);		
+		}
 	}
 	
 	public static class UserInfoMapper extends Mapper<Object, Text, Text, UserInfoWritable>{
-		private Text nickName = new Text();
-		private UserInfoWritable userInfo;
-		Pattern nickNamePattern = Pattern.compile("昵称：</span><span class=\"pt_detail\">(.*?)</span>");
-		Pattern sexPattern = Pattern.compile("性别：</span><span class=\"pt_detail\">(.*?)</span>");
-		Pattern areaPattern = Pattern.compile("所在地：</span><span class=\"pt_detail\">(.*?)</span>");
-		Pattern birthPattern = Pattern.compile("生日：</span><span class=\"pt_detail\">(.*?)</span></li>");
+		private Text uid = new Text();
+		Pattern uidPattern = Pattern.compile("uid=(\\d{10})");
+		Pattern followNumPattern = Pattern.compile("关注[(\\d{1,8})]");
+		Pattern fanNumPattern = Pattern.compile("粉丝[(\\d{1,8})]");
+		Pattern blogNumPattern = Pattern.compile("微博[(\\d{1,8})]");
+		Pattern userInfoClassPattern = Pattern.compile("<div class=\"u\">(.*?)</div>");
 		
 		@Override
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException{
@@ -158,10 +182,11 @@ public class UserInfoCollect {
 		}
 		@SuppressWarnings("deprecation")
 		Job job = new Job(conf, "Users Information Collecting");
-		job.setJarByClass(UserInfoCollect.class);
+		job.setJarByClass(UserInfoMatch.class);
 		job.setMapperClass(UserInfoMapper.class);
 		job.setOutputKeyClass(Text.class);
 		job.setOutputValueClass(UserInfoWritable.class);
+		FileInputFormat.setInputDirRecursive(job, true);
 		FileInputFormat.addInputPath(job, new Path(otherArgs[0]));
 		FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
 		System.exit(job.waitForCompletion(true)?0:1);

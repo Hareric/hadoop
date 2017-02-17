@@ -1,4 +1,4 @@
-package Weibo;
+package tool;
 
 import java.io.*;
 import java.net.URI;
@@ -27,7 +27,6 @@ public class HadoopOperation {
 		String remoteFile = "hdfs://localhost:9000/output/part-r-00000";
 		Path path = new Path(remoteFile);
 		Configuration conf = new Configuration();
-		conf.addResource("core-site.xml");
 		String hdfsPath = "hdfs://localhost:9000/";
 		FileSystem fs = FileSystem.get(URI.create(hdfsPath), conf);
 		fs.copyFromLocalFile(path, new Path(outputFile));
