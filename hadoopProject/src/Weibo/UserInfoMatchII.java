@@ -8,12 +8,11 @@ import org.apache.hadoop.fs.*;
 import org.apache.hadoop.io.*;
 import org.apache.hadoop.mapreduce.*;
 import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
-import org.apache.hadoop.mapreduce.lib.input.FileSplit;
 import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 import org.apache.hadoop.util.*;
 
 
-public class UserInfoMatch {
+public class UserInfoMatchII {
 	public static class UserInfoWritable implements Writable {
 		private String sex = null;
 		private String area = null;
@@ -72,24 +71,27 @@ public class UserInfoMatch {
 	}
 	
 	public static class UserInfoMapper extends Mapper<Object, Text, Text, UserInfoWritable>{
-		private Text uid = new Text();
+		private Text nickName = new Text();
 		private UserInfoWritable userInfo;
-		Pattern uidPattern = Pattern.compile("uid=(\\d{10})");
-		Pattern sexPattern = Pattern.compile("<br />性别:(.{1,2})<");
-		Pattern areaPattern = Pattern.compile("<br />地区:(.{1,15})<");
-		Pattern birthPattern = Pattern.compile("<br />生日:(.{1,10})<");
+		Pattern nickNamePattern = Pattern.compile("昵称：</span><span class=\"pt_detail\">(.*?)</span>");
+		Pattern sexPattern = Pattern.compile("性别：</span><span class=\"pt_detail\">(.*?)</span>");
+		Pattern areaPattern = Pattern.compile("所在地：</span><span class=\"pt_detail\">(.*?)</span>");
+		Pattern birthPattern = Pattern.compile("生日：</span><span class=\"pt_detail\">(.*?)</span></li>");
 		
 		@Override
 		public void map(Object key, Text value, Context context) throws IOException, InterruptedException{
-			
 			String url = value.toString();
+			if (url.indexOf("span class=\"pt_detail") == -1){
+				return;
+			}
 					
 			Matcher matcher;
-			if (uid.toString().equals("")){
-				matcher = uidPattern.matcher(url);
+			if (nickName.toString().equals("")){
+				matcher = nickNamePattern.matcher(url);
 				if (matcher.find()){
 					String term = matcher.group(1);
-					uid.set(term);
+					nickName.set(term);
+					return;
 				}
 			}
 			
@@ -98,6 +100,7 @@ public class UserInfoMatch {
 				if (matcher.find()){
 					String term = matcher.group(1);
 					userInfo.setSex(term);
+					return;
 				}
 			}
 			
@@ -106,6 +109,7 @@ public class UserInfoMatch {
 				if (matcher.find()){
 					String term = matcher.group(1);
 					userInfo.setArea(term);
+					return;
 				}
 			}
 			
@@ -114,6 +118,7 @@ public class UserInfoMatch {
 				if (matcher.find()){
 					String term = matcher.group(1);
 					userInfo.setBirth(term);
+					return;
 				}	
 			}
 			
@@ -123,18 +128,15 @@ public class UserInfoMatch {
 		@Override
 		public void run(Context context) throws IOException, InterruptedException {
 		    setup(context);
-		    String fileName = ((FileSplit) context.getInputSplit()).getPath().getName();
-		    System.out.println(fileName);
 		    userInfo = new UserInfoWritable();
 		    while (context.nextKeyValue()) {
-		    	
 		       map(context.getCurrentKey(), context.getCurrentValue(), context);
 		       if (userInfo.getBirth()!=null){
 		    	   break;
 		       }
 		    }
-		    if (!this.uid.toString().equals("")){
-		    	context.write(uid, userInfo);
+		    if (!this.nickName.toString().equals("")){
+		    	context.write(nickName, userInfo);
 		    }
 		    
 		    cleanup(context);
@@ -170,7 +172,7 @@ public class UserInfoMatch {
 	}
 	
 	public static void main(String[] args) throws Exception{
-		String[] args1 = {"/weibo_simple", "/weibo_m_13"};
+		String[] args1 = {"/userInfo", "/output"};
 		runMapReduce(args1);
 //		runMapReduce(args);
 	}
