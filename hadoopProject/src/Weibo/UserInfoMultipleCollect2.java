@@ -1,6 +1,8 @@
 package weibo;
 
 import java.io.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.hadoop.conf.Configuration;
@@ -16,7 +18,8 @@ import org.apache.hadoop.util.*;
 
 
 
-public class UserInfoMultipleCollect {
+public class UserInfoMultipleCollect2 {
+	List<Path> errorPath = new ArrayList<Path>();
 	public static class UserInfoWritable implements Writable {
 		int followNum = -1;  // 关注人数
 		int fanNum = -1;  // 粉丝人数
@@ -73,15 +76,13 @@ public class UserInfoMultipleCollect {
 		String sex = null;
 		String area = null;
 		String birth = null;
-		String nickName = null;
 		
 	    public UserInfoWritableII() {}
 
-	    public UserInfoWritableII(String sex, String area, String birth, String nickName) {
+	    public UserInfoWritableII(String sex, String area, String birth) {
 	        this.sex = sex;
 	        this.area = area;
 	        this.birth = birth;
-	        this.nickName = nickName;
 	    }
 	    
 	    @Override
@@ -89,7 +90,6 @@ public class UserInfoMultipleCollect {
 	    	this.sex = WritableUtils.readString(in);
 	    	this.area = WritableUtils.readString(in);
 	    	this.birth = WritableUtils.readString(in);
-	    	this.nickName = WritableUtils.readString(in);
 	    }
 
 	    @Override 
@@ -97,19 +97,18 @@ public class UserInfoMultipleCollect {
 	    	WritableUtils.writeString(out, sex);
 	    	WritableUtils.writeString(out, area);
 	    	WritableUtils.writeString(out, birth);
-	    	WritableUtils.writeString(out, nickName);
 	    }
 
 	    @Override
 	    public String toString() {
-	        return this.nickName + "\t" + this.sex + "\t" + this.area + "\t" + this.birth;
+	        return this.sex + "\t" + this.area + "\t" + this.birth;
 	    }
 		
 	}
 	public static class InfoWritable implements Writable{	
 		int typeNum = -1;  // 匹配信息的类别 0:用户id 1:关注的人数 2:粉丝数 3:发布的微博数 4:是否微博认证 
 							// 5:首页转发数 6:首页评论数 7:首页点赞数
-							// 8:性别 9:地区 10:生日 11:昵称
+							// 8:性别 9:地区 10:生日
 		String matchInfo = null;
 		
 		public InfoWritable(){}
@@ -160,14 +159,16 @@ public class UserInfoMultipleCollect {
 			else{
 				urlHead = matcher.group(1);
 			}
-			matcher = uidPattern.matcher(url);
-			if (matcher.find()){
-				uid.set(matcher.group(1));
-				System.out.println("uid:" + uid.toString());
-			}
-			else{
-				return;
-			}
+//			matcher = uidPattern.matcher(url);
+//			if (matcher.find()){
+//				uid.set(matcher.group(1));
+//				System.out.println("uid:" + uid.toString());
+//			}
+//			else{
+//				return;
+//			}
+			String fileName = ((FileSplit)context.getInputSplit()).getPath().getName();
+			uid.set((fileName.substring(0, fileName.length()-5)));
 			matcher = followNumPattern.matcher(url);
 			if (matcher.find()){
 				System.out.println("follow:" + matcher.group(1));
@@ -224,10 +225,9 @@ public class UserInfoMultipleCollect {
 		public void mapForInformation(Object key, Text value, Context context) throws IOException, InterruptedException{
 			Text uid = new Text();
 			Pattern uidPattern = Pattern.compile("uid=(\\d{10})");
-			Pattern sexPattern = Pattern.compile("性别:(.{1,2}?)<");
-			Pattern areaPattern = Pattern.compile("地区:(.{1,15}?)<");
-			Pattern birthPattern = Pattern.compile("生日:(.{1,10}?)<");
-			Pattern nickNamePattern = Pattern.compile("昵称:(.{1,25}?)<");
+			Pattern sexPattern = Pattern.compile("<br />性别:(.{1,2}?)<");
+			Pattern areaPattern = Pattern.compile("<br />地区:(.{1,15}?)<");
+			Pattern birthPattern = Pattern.compile("<br />生日:(.{1,10}?)<");
 			String url = value.toString();
 					
 			Matcher matcher;
@@ -239,6 +239,7 @@ public class UserInfoMultipleCollect {
 			else{
 				return;
 			}
+			
 			
 			matcher = sexPattern.matcher(url);
 			if (matcher.find()){
@@ -266,14 +267,6 @@ public class UserInfoMultipleCollect {
 			else{
 				System.out.println("无法匹配生日");
 			}
-			matcher = nickNamePattern.matcher(url);
-			if (matcher.find()){
-				System.out.println(matcher.group(1));
-				context.write(uid, new InfoWritable(11, matcher.group(1)));
-			}
-			else{
-				System.out.println("无法匹配昵称");
-			}
 		}
 		
 		
@@ -281,20 +274,9 @@ public class UserInfoMultipleCollect {
 		    setup(context);
 		    Path path = ((FileSplit) context.getInputSplit()).getPath();
 		    System.out.println(path);
-		    if (path.getName().indexOf("information")!=-1){
-		    	while (context.nextKeyValue()) {    	
-				       this.mapForInformation(context.getCurrentKey(), context.getCurrentValue(), context);
-				       }
-		    }
-		    else if(path.getName().indexOf("mainPage")!=-1){
-		    	while (context.nextKeyValue()) {    	
-		    		this.mapForMain(context.getCurrentKey(), context.getCurrentValue(), context);
-				       }
-		    }
-		    else{
-		    	cleanup(context);
-		    	return;
-		    }    	    
+		    while (context.nextKeyValue()) {    	
+			       this.mapForMain(context.getCurrentKey(), context.getCurrentValue(), context);
+			}   	    
 		    cleanup(context);
 		}
 	}
@@ -347,9 +329,6 @@ public class UserInfoMultipleCollect {
 				else if(info.typeNum == 10){
 					uiwII.birth = info.matchInfo;
 				}
-				else if(info.typeNum == 11){
-					uiwII.nickName = info.matchInfo;
-				}
 			}
 			this.output.write("UserInfoI", uid, uiw);
 			this.output.write("UserInfoII", uid, uiwII);
@@ -366,7 +345,7 @@ public class UserInfoMultipleCollect {
 		}
 		@SuppressWarnings("deprecation")
 		Job job = new Job(conf, "Users Information Collecting");
-		job.setJarByClass(UserInfoMultipleCollect.class);
+		job.setJarByClass(UserInfoMultipleCollect2.class);
 		job.setMapperClass(UserInfoMapper.class);
 		job.setReducerClass(UserInfoReducer.class);
 		job.setOutputKeyClass(Text.class);
@@ -376,12 +355,12 @@ public class UserInfoMultipleCollect {
 		FileOutputFormat.setOutputPath(job, new Path(otherArgs[1]));
 		MultipleOutputs.addNamedOutput(job, "UserInfoI", TextOutputFormat.class, Text.class, UserInfoWritable.class );
         MultipleOutputs.addNamedOutput(job, "UserInfoII", TextOutputFormat.class, Text.class, UserInfoWritableII.class );
-
+ 
 		System.exit(job.waitForCompletion(true)?0:1);
 	}
 	
 	public static void main(String[] args) throws Exception{
-		String[] args1 = {"/weibo", "/output_weibo_nn"};
+		String[] args1 = {"/gbdt_train_data", "/output_gbdt_train_data"};
 		runMapReduce(args1);
 //		runMapReduce(args);
 	}
